@@ -1,5 +1,5 @@
 # ===== Stage 1: Builder =====
-FROM golang:1.22-alpine3.19 AS builder
+FROM m.daocloud.io/docker.io/library/golang:1.22-alpine3.19 AS builder
 
 RUN apk add --no-cache git ca-certificates tzdata
 
@@ -14,7 +14,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -o /build/server ./cmd/server/main.go
 
 # ===== Stage 2: Runner =====
-FROM alpine:3.19
+FROM m.daocloud.io/docker.io/library/alpine:3.19
 
 RUN apk add --no-cache ca-certificates tzdata && \
     addgroup -S appgroup && \

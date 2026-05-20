@@ -177,7 +177,7 @@ services:
   # 负责 SSL 终止、限流、路由到 backend/admin
   # ---------------------------------------------------------------------------
   nginx:
-    image: nginx:1.25-alpine
+    image: m.daocloud.io/docker.io/library/nginx:1.25-alpine
     container_name: linxi-nginx
     restart: always
     ports:

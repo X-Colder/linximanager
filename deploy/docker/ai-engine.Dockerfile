@@ -5,7 +5,7 @@
 # =============================================================================
 
 # ===== Stage 1: 依赖安装（利用层缓存）=====
-FROM python:3.11-slim AS builder
+FROM m.daocloud.io/docker.io/library/python:3.11-slim AS builder
 
 WORKDIR /build
 
@@ -19,7 +19,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ===== Stage 2: 运行镜像 =====
-FROM python:3.11-slim
+FROM m.daocloud.io/docker.io/library/python:3.11-slim
 
 # 创建非 root 用户运行应用
 RUN groupadd -r appgroup && \

@@ -37,7 +37,7 @@ services:
   # 注意：初始化 SQL 使用 postgis 扩展，需要 postgis 镜像
   # ===========================================================================
   postgres:
-    image: postgis/postgis:16-3.4-alpine
+    image: m.daocloud.io/docker.io/postgis/postgis:16-3.4-alpine
     container_name: linxi-postgres
     restart: unless-stopped
     environment:
@@ -66,7 +66,7 @@ services:
   # --appendonly yes 开启 AOF 持久化，防止重启丢失缓存数据
   # ===========================================================================
   redis:
-    image: redis:7-alpine
+    image: m.daocloud.io/docker.io/library/redis:7-alpine
     container_name: linxi-redis
     restart: unless-stopped
     command: >
@@ -91,7 +91,7 @@ services:
   # 控制台：http://localhost:9001  默认账号见 .env
   # ===========================================================================
   minio:
-    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+    image: m.daocloud.io/docker.io/minio/minio:RELEASE.2024-01-16T16-07-38Z
     container_name: linxi-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -116,7 +116,7 @@ services:
   # Meilisearch v1.6 全文搜索
   # ===========================================================================
   meilisearch:
-    image: getmeili/meilisearch:v1.6
+    image: m.daocloud.io/docker.io/getmeili/meilisearch:v1.6
     container_name: linxi-meilisearch
     restart: unless-stopped
     environment:

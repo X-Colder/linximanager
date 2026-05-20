@@ -9,7 +9,7 @@
 # =============================================================================
 
 # ===== Stage 1: 前端构建 =====
-FROM node:20-alpine3.19 AS builder
+FROM m.daocloud.io/docker.io/library/node:20-alpine3.19 AS builder
 
 WORKDIR /app
 
@@ -34,7 +34,7 @@ COPY . .
 RUN npm run build
 
 # ===== Stage 2: Nginx 静态文件服务 =====
-FROM nginx:1.25-alpine
+FROM m.daocloud.io/docker.io/library/nginx:1.25-alpine
 
 # 创建非 root 用户，nginx worker 进程无需 root
 RUN addgroup -S nginxgroup && \
