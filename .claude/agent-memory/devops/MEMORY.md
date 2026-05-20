@@ -1,0 +1,1 @@
+- [灵犀掌柜项目架构概览](project_architecture.md) — Go+Python+Vue3 技术栈、端口映射、K8s 生产拓扑

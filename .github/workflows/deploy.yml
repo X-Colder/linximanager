@@ -1,0 +1,148 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "ai-engine/**"
+      - "deploy/**"
+      - ".github/workflows/deploy.yml"
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: registry.cn-hangzhou.aliyuncs.com
+  NAMESPACE: linximanager
+  IMAGE_PREFIX: registry.cn-hangzhou.aliyuncs.com/linximanager
+
+jobs:
+  # ============ 构建并推送镜像 ============
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate image tag
+        id: meta
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-8)
+          echo "version=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "Image tag: ${SHORT_SHA}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      # ---- 后端镜像 ----
+      - name: Build & Push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./deploy/docker/backend.Dockerfile
+          push: true
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/backend:${{ steps.meta.outputs.version }}
+            ${{ env.IMAGE_PREFIX }}/backend:latest
+
+      # ---- 管理后台镜像 ----
+      - name: Build & Push admin
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend/admin
+          file: ./deploy/docker/admin.Dockerfile
+          push: true
+          build-args: |
+            VITE_API_BASE_URL=https://linximanager.com
+          cache-from: type=gha,scope=admin
+          cache-to: type=gha,scope=admin,mode=max
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/admin:${{ steps.meta.outputs.version }}
+            ${{ env.IMAGE_PREFIX }}/admin:latest
+
+      # ---- AI 引擎镜像 ----
+      - name: Build & Push ai-engine
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-engine
+          file: ./deploy/docker/ai-engine.Dockerfile
+          push: true
+          cache-from: type=gha,scope=ai-engine
+          cache-to: type=gha,scope=ai-engine,mode=max
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/ai-engine:${{ steps.meta.outputs.version }}
+            ${{ env.IMAGE_PREFIX }}/ai-engine:latest
+
+  # ============ 部署到 Kubernetes ============
+  deploy-k8s:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment:
+      name: production
+      url: https://linximanager.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.29.0"
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Update image tags in manifests
+        run: |
+          TAG=${{ needs.build-and-push.outputs.image-tag }}
+          sed -i "s|backend:latest|backend:${TAG}|g" deploy/k8s/backend-deployment.yaml
+          sed -i "s|admin:latest|admin:${TAG}|g" deploy/k8s/admin-deployment.yaml
+
+      - name: Apply K8s manifests
+        run: |
+          kubectl apply -f deploy/k8s/namespace.yaml
+          kubectl apply -f deploy/k8s/configmap.yaml
+          # Secret 通过 CI/CD 外部管理，不在此 apply secret.yaml（避免覆盖生产密钥）
+          kubectl apply -f deploy/k8s/postgres-statefulset.yaml
+          kubectl apply -f deploy/k8s/redis-deployment.yaml
+          kubectl apply -f deploy/k8s/backend-deployment.yaml
+          kubectl apply -f deploy/k8s/backend-service.yaml
+          kubectl apply -f deploy/k8s/admin-deployment.yaml
+          kubectl apply -f deploy/k8s/admin-service.yaml
+          kubectl apply -f deploy/k8s/ingress.yaml
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/backend -n ${{ env.NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/admin -n ${{ env.NAMESPACE }} --timeout=3m
+
+      - name: Run smoke test
+        run: |
+          sleep 10
+          curl -sf https://linximanager.com/health || echo "Warning: health check failed"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Deployment failed! Consider rolling back with:"
+          echo "  kubectl rollout undo deployment/backend -n ${{ env.NAMESPACE }}"
+          echo "  kubectl rollout undo deployment/admin -n ${{ env.NAMESPACE }}"

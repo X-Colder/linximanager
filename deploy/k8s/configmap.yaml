@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: linxi-config
+  namespace: linximanager
+data:
+  APP_ENV: "production"
+  APP_PORT: "8080"
+  DB_PORT: "5432"
+  DB_NAME: "linximanager"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  MINIO_ENDPOINT: "minio-service:9000"
+  MINIO_USE_SSL: "false"
+  MINIO_BUCKET: "linximanager"
+  MEILI_HOST: "http://meilisearch-service:7700"
+  AI_ENGINE_GRPC: "ai-engine-service:50051"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  CORS_ALLOWED_ORIGINS: "https://admin.linximanager.com"
+  JWT_ACCESS_EXPIRE: "7200"
+  JWT_REFRESH_EXPIRE: "604800"
+  RATE_LIMIT_RPM: "100"

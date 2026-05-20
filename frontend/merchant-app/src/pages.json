@@ -1,0 +1,93 @@
+{
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "工作台",
+        "navigationBarBackgroundColor": "#4A6CF7",
+        "navigationBarTextStyle": "white",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/products/index",
+      "style": {
+        "navigationBarTitleText": "商品库存",
+        "navigationBarBackgroundColor": "#4A6CF7",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/decision/index",
+      "style": {
+        "navigationBarTitleText": "AI决策中心",
+        "navigationBarBackgroundColor": "#4A6CF7",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/orders/index",
+      "style": {
+        "navigationBarTitleText": "订单管理",
+        "navigationBarBackgroundColor": "#4A6CF7",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/mine/index",
+      "style": {
+        "navigationBarTitleText": "我的",
+        "navigationBarBackgroundColor": "#4A6CF7",
+        "navigationBarTextStyle": "white"
+      }
+    }
+  ],
+  "tabBar": {
+    "color": "#9CA3AF",
+    "selectedColor": "#4A6CF7",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "static/tabs/home.png",
+        "selectedIconPath": "static/tabs/home-active.png"
+      },
+      {
+        "pagePath": "pages/products/index",
+        "text": "商品",
+        "iconPath": "static/tabs/product.png",
+        "selectedIconPath": "static/tabs/product-active.png"
+      },
+      {
+        "pagePath": "pages/decision/index",
+        "text": "决策",
+        "iconPath": "static/tabs/ai.png",
+        "selectedIconPath": "static/tabs/ai-active.png"
+      },
+      {
+        "pagePath": "pages/orders/index",
+        "text": "订单",
+        "iconPath": "static/tabs/order.png",
+        "selectedIconPath": "static/tabs/order-active.png"
+      },
+      {
+        "pagePath": "pages/mine/index",
+        "text": "我的",
+        "iconPath": "static/tabs/mine.png",
+        "selectedIconPath": "static/tabs/mine-active.png"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "灵犀掌柜",
+    "navigationBarBackgroundColor": "#FFFFFF",
+    "backgroundColor": "#F9FAFB",
+    "app-plus": {
+      "background": "#F9FAFB"
+    }
+  },
+  "uniIdRouter": {}
+}

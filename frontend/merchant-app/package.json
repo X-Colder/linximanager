@@ -1,0 +1,22 @@
+{
+  "name": "linxi-merchant-app",
+  "version": "1.0.0",
+  "description": "灵犀掌柜商家小程序",
+  "scripts": {
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:mp-weixin": "uni build -p mp-weixin"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-4030920240930001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-4030920240930001",
+    "@dcloudio/uni-ui": "^1.5.5",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "*",
+    "@dcloudio/uni-cli-shared": "3.0.0-4030920240930001",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>灵犀掌柜 - 商家端工作台原型</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #4A6CF7;
+            --primary-light: #E8EDFF;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --danger: #EF4444;
+            --info: #3B82F6;
+            --promo: #F97316;
+            --text-primary: #1F2937;
+            --text-secondary: #4B5563;
+            --text-muted: #9CA3AF;
+            --border: #E5E7EB;
+            --divider: #F3F4F6;
+            --bg-page: #F9FAFB;
+            --bg-card: #FFFFFF;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --shadow-card: 0 2px 8px rgba(0,0,0,0.06);
+            --shadow-modal: 0 8px 32px rgba(0,0,0,0.12);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .phone-frame {
+            width: 375px;
+            height: 812px;
+            background: var(--bg-page);
+            border-radius: 40px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 0 0 12px #1a1a1a, 0 0 0 14px #333, 0 20px 60px rgba(0,0,0,0.5);
+        }
+
+        .status-bar {
+            height: 44px;
+            background: var(--bg-card);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .page-header {
+            background: var(--bg-card);
+            padding: 0 16px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .page-header h1 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .page-header .date {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .content {
+            height: calc(100% - 44px - 60px - 83px);
+            overflow-y: auto;
+            padding: 12px 16px;
+            scroll-behavior: smooth;
+        }
+
+        .content::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* 今日概览 */
+        .overview-card {
+            background: var(--bg-card);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .overview-card .title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .stat-item {
+            text-align: center;
+            flex: 1;
+            cursor: pointer;
+            padding: 8px 4px;
+            border-radius: var(--radius-sm);
+            transition: background 0.2s;
+        }
+
+        .stat-item:hover {
+            background: var(--primary-light);
+        }
+
+        .stat-item .value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-item .label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .stat-item .trend {
+            font-size: 11px;
+            margin-top: 2px;
+        }
+
+        .trend.up { color: var(--success); }
+        .trend.down { color: var(--danger); }
+
+        /* 预警看板 */
+        .alert-section {
+            background: var(--bg-card);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .section-header .title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .section-header .more {
+            font-size: 12px;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .alert-group {
+            margin-bottom: 12px;
+        }
+
+        .alert-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .alert-group-title {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .alert-group-title .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .dot.red { background: var(--danger); }
+        .dot.yellow { background: var(--warning); }
+        .dot.blue { background: var(--info); }
+
+        .alert-card {
+            border-left: 4px solid;
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .alert-card:active {
+            transform: scale(0.98);
+        }
+
+        .alert-card.red {
+            border-left-color: var(--danger);
+            background: #FEF2F2;
+        }
+
+        .alert-card.yellow {
+            border-left-color: var(--warning);
+            background: #FFFBEB;
+        }
+
+        .alert-card.blue {
+            border-left-color: var(--info);
+            background: #EFF6FF;
+        }
+
+        .alert-card .info .name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .alert-card .info .desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .alert-card .action {
+            font-size: 12px;
+            color: var(--primary);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        /* 待办事项 */
+        .todo-section {
+            background: var(--bg-card);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .todo-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--divider);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .todo-item:last-child {
+            border-bottom: none;
+        }
+
+        .todo-item:hover {
+            background: var(--bg-page);
+            margin: 0 -8px;
+            padding: 10px 8px;
+            border-radius: var(--radius-sm);
+        }
+
+        .todo-item .checkbox {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border);
+            border-radius: 50%;
+            margin-right: 10px;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+
+        .todo-item.done .checkbox {
+            background: var(--success);
+            border-color: var(--success);
+        }
+
+        .todo-item .text {
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        .todo-item.done .text {
+            color: var(--text-muted);
+            text-decoration: line-through;
+        }
+
+        .todo-item .badge {
+            margin-left: auto;
+            background: var(--danger);
+            color: white;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        /* AI助手入口 */
+        .ai-entry {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 12px;
+            color: white;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.15s;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .ai-entry:active {
+            transform: scale(0.98);
+        }
+
+        .ai-entry .icon {
+            font-size: 32px;
+            margin-right: 12px;
+        }
+
+        .ai-entry .text h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .ai-entry .text p {
+            font-size: 12px;
+            opacity: 0.85;
+        }
+
+        .ai-entry .arrow {
+            margin-left: auto;
+            font-size: 18px;
+            opacity: 0.7;
+        }
+
+        /* 新手进度 */
+        .onboarding {
+            background: var(--bg-card);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: var(--divider);
+            border-radius: 3px;
+            margin: 12px 0;
+            overflow: hidden;
+        }
+
+        .progress-bar .fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--success));
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-steps {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .progress-steps .step.done {
+            color: var(--success);
+        }
+
+        .progress-steps .step.active {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        /* Tab栏 */
+        .tab-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 83px;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: flex-start;
+            padding-top: 8px;
+            padding-bottom: 34px;
+        }
+
+        .tab-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+
+        .tab-item:active {
+            transform: scale(0.9);
+        }
+
+        .tab-item .icon {
+            font-size: 22px;
+            margin-bottom: 2px;
+        }
+
+        .tab-item .label {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .tab-item.active .label {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        /* Toast */
+        .toast {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: rgba(31, 41, 55, 0.9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 13px;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* 骨架屏 */
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+        }
+
+        /* 浮动语音按钮 */
+        .voice-fab {
+            position: absolute;
+            bottom: 100px;
+            right: 20px;
+            width: 52px;
+            height: 52px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 22px;
+            box-shadow: 0 4px 12px rgba(74, 108, 247, 0.4);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            z-index: 10;
+        }
+
+        .voice-fab:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(74, 108, 247, 0.5);
+        }
+
+        .voice-fab:active {
+            transform: scale(0.95);
+        }
+
+        /* 动画 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.4s ease forwards;
+        }
+
+        .delay-1 { animation-delay: 0.1s; opacity: 0; }
+        .delay-2 { animation-delay: 0.2s; opacity: 0; }
+        .delay-3 { animation-delay: 0.3s; opacity: 0; }
+        .delay-4 { animation-delay: 0.4s; opacity: 0; }
+        .delay-5 { animation-delay: 0.5s; opacity: 0; }
+
+        /* 脉冲动画 - 预警 */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="phone-frame">
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <span>9:41</span>
+            <span>📶 🔋</span>
+        </div>
+
+        <!-- 页面头 -->
+        <div class="page-header">
+            <h1>灵犀掌柜</h1>
+            <span class="date">5月20日 周二</span>
+        </div>
+
+        <!-- Toast提示 -->
+        <div class="toast" id="toast">✓ 操作成功</div>
+
+        <!-- 内容区 -->
+        <div class="content">
+            <!-- 今日概览 -->
+            <div class="overview-card animate-in delay-1">
+                <div class="title">今日概览</div>
+                <div class="stats-row">
+                    <div class="stat-item" onclick="showToast('查看销售趋势')">
+                        <div class="value">¥2,850</div>
+                        <div class="label">销售额</div>
+                        <div class="trend up">↑ 12.5%</div>
+                    </div>
+                    <div class="stat-item" onclick="showToast('查看订单详情')">
+                        <div class="value">47</div>
+                        <div class="label">订单数</div>
+                        <div class="trend up">↑ 8.3%</div>
+                    </div>
+                    <div class="stat-item" onclick="showToast('查看利润分析')">
+                        <div class="value">¥980</div>
+                        <div class="label">预计毛利</div>
+                        <div class="trend up">↑ 5.2%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 预警看板 -->
+            <div class="alert-section animate-in delay-2">
+                <div class="section-header">
+                    <span class="title">⚠️ 预警看板</span>
+                    <span class="more" onclick="showToast('查看全部预警')">查看全部 ›</span>
+                </div>
+
+                <!-- 红色预警 -->
+                <div class="alert-group">
+                    <div class="alert-group-title">
+                        <span class="dot red pulse"></span>
+                        <span style="color: var(--danger)">缺货预警 (3)</span>
+                    </div>
+                    <div class="alert-card red" onclick="showToast('跳转到补货页面')">
+                        <div class="info">
+                            <div class="name">🍗 鸡翅</div>
+                            <div class="desc">剩余2kg · 预计明天缺货</div>
+                        </div>
+                        <div class="action">去补货 ›</div>
+                    </div>
+                    <div class="alert-card red" onclick="showToast('跳转到补货页面')">
+                        <div class="info">
+                            <div class="name">🍺 青岛啤酒</div>
+                            <div class="desc">剩余5瓶 · 预计明天缺货</div>
+                        </div>
+                        <div class="action">去补货 ›</div>
+                    </div>
+                </div>
+
+                <!-- 黄色预警 -->
+                <div class="alert-group">
+                    <div class="alert-group-title">
+                        <span class="dot yellow"></span>
+                        <span style="color: var(--warning)">积压预警 (2)</span>
+                    </div>
+                    <div class="alert-card yellow" onclick="showToast('跳转到促销设置')">
+                        <div class="info">
+                            <div class="name">🧃 果汁</div>
+                            <div class="desc">库存45瓶 · 超标2倍</div>
+                        </div>
+                        <div class="action">设促销 ›</div>
+                    </div>
+                </div>
+
+                <!-- 蓝色预警 -->
+                <div class="alert-group">
+                    <div class="alert-group-title">
+                        <span class="dot blue"></span>
+                        <span style="color: var(--info)">临期提醒 (1)</span>
+                    </div>
+                    <div class="alert-card blue" onclick="showToast('跳转到清仓页面')">
+                        <div class="info">
+                            <div class="name">🍞 面包</div>
+                            <div class="desc">12个 · 还剩2天过期</div>
+                        </div>
+                        <div class="action">去清仓 ›</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI助手入口 -->
+            <div class="ai-entry animate-in delay-3" onclick="showToast('打开AI经营顾问')">
+                <div class="icon">🧠</div>
+                <div class="text">
+                    <h3>AI经营顾问</h3>
+                    <p>问我任何经营问题，如"明天下雨备什么货？"</p>
+                </div>
+                <div class="arrow">›</div>
+            </div>
+
+            <!-- 待办事项 -->
+            <div class="todo-section animate-in delay-4">
+                <div class="section-header">
+                    <span class="title">📝 待办事项</span>
+                    <span class="more">5项</span>
+                </div>
+                <div class="todo-item" onclick="toggleTodo(this)">
+                    <div class="checkbox"></div>
+                    <div class="text">确认"果汁7折"促销方案</div>
+                </div>
+                <div class="todo-item" onclick="toggleTodo(this)">
+                    <div class="checkbox"></div>
+                    <div class="text">3笔订单待备货</div>
+                    <span class="badge">3</span>
+                </div>
+                <div class="todo-item" onclick="toggleTodo(this)">
+                    <div class="checkbox"></div>
+                    <div class="text">生成明日补货清单</div>
+                </div>
+                <div class="todo-item" onclick="toggleTodo(this)">
+                    <div class="checkbox"></div>
+                    <div class="text">查看联盟引流效果</div>
+                </div>
+                <div class="todo-item" onclick="toggleTodo(this)">
+                    <div class="checkbox"></div>
+                    <div class="text">确认啤酒批次入库</div>
+                </div>
+            </div>
+
+            <!-- 新手进度 -->
+            <div class="onboarding animate-in delay-5">
+                <div class="section-header">
+                    <span class="title">🎯 数据初始化进度</span>
+                    <span class="more">75%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="fill" style="width: 75%"></div>
+                </div>
+                <div class="progress-steps">
+                    <span class="step done">✓ 店铺信息</span>
+                    <span class="step done">✓ 导入商品</span>
+                    <span class="step done">✓ 首次盘点</span>
+                    <span class="step active">● 积累数据</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 浮动语音按钮 -->
+        <div class="voice-fab" onclick="showToast('长按开始语音录入')">🎤</div>
+
+        <!-- 底部Tab栏 -->
+        <div class="tab-bar">
+            <div class="tab-item active">
+                <span class="icon">🏠</span>
+                <span class="label">首页</span>
+            </div>
+            <div class="tab-item" onclick="showToast('切换到商品页')">
+                <span class="icon">📦</span>
+                <span class="label">商品</span>
+            </div>
+            <div class="tab-item" onclick="showToast('切换到决策中心')">
+                <span class="icon">🧠</span>
+                <span class="label">决策</span>
+            </div>
+            <div class="tab-item" onclick="showToast('切换到订单页')">
+                <span class="icon">📋</span>
+                <span class="label">订单</span>
+            </div>
+            <div class="tab-item" onclick="showToast('切换到我的页面')">
+                <span class="icon">👤</span>
+                <span class="label">我的</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2000);
+        }
+
+        function toggleTodo(item) {
+            item.classList.toggle('done');
+            if (item.classList.contains('done')) {
+                showToast('✓ 已完成');
+            }
+        }
+    </script>
+</body>
+</html>

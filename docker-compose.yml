@@ -1,0 +1,190 @@
+version: "3.9"
+
+# 灵犀掌柜 - 开发环境
+# 启动: docker compose up -d
+
+networks:
+  linxi-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  meilisearch_data:
+
+services:
+  # ============ 数据库 ============
+  postgres:
+    image: postgres:16-alpine
+    container_name: linxi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-linximanager}
+      POSTGRES_USER: ${POSTGRES_USER:-linxi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-linxi_dev_password}
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - linxi-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-linxi} -d ${POSTGRES_DB:-linximanager}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============ 缓存 ============
+  redis:
+    image: redis:7-alpine
+    container_name: linxi-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_dev_password} --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - linxi-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_dev_password}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============ 对象存储 ============
+  minio:
+    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+    container_name: linxi-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_dev_password}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - linxi-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============ 全文搜索 ============
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    container_name: linxi-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-meili_dev_masterkey}
+      MEILI_ENV: development
+    ports:
+      - "7700:7700"
+    volumes:
+      - meilisearch_data:/meili_data
+    networks:
+      - linxi-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============ AI 引擎 ============
+  ai-engine:
+    build:
+      context: ./ai-engine
+      dockerfile: ../deploy/docker/ai-engine.Dockerfile
+    container_name: linxi-ai-engine
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-linxi}:${POSTGRES_PASSWORD:-linxi_dev_password}@postgres:5432/${POSTGRES_DB:-linximanager}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_dev_password}@redis:6379/1
+      - AI_ENGINE_ENV=development
+      - LLM_API_KEY=${LLM_API_KEY:-}
+    ports:
+      - "8000:8000"
+      - "50051:50051"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - linxi-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  # ============ Go 后端 ============
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../deploy/docker/backend.Dockerfile
+    container_name: linxi-backend
+    restart: unless-stopped
+    env_file:
+      - ./deploy/env/.env.development
+    environment:
+      - APP_ENV=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-linximanager}
+      - DB_USER=${POSTGRES_USER:-linxi}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-linxi_dev_password}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis_dev_password}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minio_dev_password}
+      - MEILI_HOST=http://meilisearch:7700
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY:-meili_dev_masterkey}
+      - AI_ENGINE_GRPC=ai-engine:50051
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    networks:
+      - linxi-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+  # ============ 管理后台 ============
+  admin:
+    build:
+      context: ./frontend/admin
+      dockerfile: ../../deploy/docker/admin.Dockerfile
+    container_name: linxi-admin
+    restart: unless-stopped
+    environment:
+      - VITE_API_BASE_URL=http://backend:8080
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - linxi-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

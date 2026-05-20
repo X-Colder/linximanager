@@ -1,0 +1,1 @@
+- [灵犀掌柜前端项目结构](project_frontend_structure.md) — 三端技术栈、目录结构、API规范、核心组件清单
