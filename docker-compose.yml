@@ -1,22 +1,43 @@
-version: "3.9"
-
-# 灵犀掌柜 - 开发环境
-# 启动: docker compose up -d
+# =============================================================================
+# 灵犀掌柜 - 开发环境编排
+#
+# 启动全栈:
+#   cp .env.example .env   # 首次使用时复制并按需修改
+#   docker compose up -d
+#
+# 仅启动基础设施（无需构建镜像）:
+#   docker compose up -d postgres redis minio meilisearch
+#
+# 查看日志:
+#   docker compose logs -f backend
+#
+# 停止并清理卷（完全重置）:
+#   docker compose down -v
+# =============================================================================
 
 networks:
   linxi-net:
     driver: bridge
+    # 固定子网，便于防火墙规则和调试
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
   postgres_data:
+    # 生产建议使用具名卷并定期备份
   redis_data:
   minio_data:
   meilisearch_data:
 
 services:
-  # ============ 数据库 ============
+
+  # ===========================================================================
+  # PostgreSQL 16
+  # 注意：初始化 SQL 使用 postgis 扩展，需要 postgis 镜像
+  # ===========================================================================
   postgres:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.4-alpine
     container_name: linxi-postgres
     restart: unless-stopped
     environment:
@@ -25,9 +46,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-linxi_dev_password}
       TZ: Asia/Shanghai
     ports:
+      # 仅开发环境暴露，生产覆盖配置中会移除
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # 自动执行初始化 SQL（仅首次创建数据库时执行）
+      - ./backend/migrations/001_init_schema.sql:/docker-entrypoint-initdb.d/001_init_schema.sql:ro
     networks:
       - linxi-net
     healthcheck:
@@ -35,13 +59,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
-  # ============ 缓存 ============
+  # ===========================================================================
+  # Redis 7
+  # --appendonly yes 开启 AOF 持久化，防止重启丢失缓存数据
+  # ===========================================================================
   redis:
     image: redis:7-alpine
     container_name: linxi-redis
     restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_dev_password} --appendonly yes
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-redis_dev_password}
+      --appendonly yes
+      --loglevel notice
     ports:
       - "6379:6379"
     volumes:
@@ -54,7 +86,10 @@ services:
       timeout: 5s
       retries: 5
 
-  # ============ 对象存储 ============
+  # ===========================================================================
+  # MinIO 对象存储
+  # 控制台：http://localhost:9001  默认账号见 .env
+  # ===========================================================================
   minio:
     image: minio/minio:RELEASE.2024-01-16T16-07-38Z
     container_name: linxi-minio
@@ -64,8 +99,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_dev_password}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web 控制台
     volumes:
       - minio_data:/data
     networks:
@@ -75,8 +110,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
 
-  # ============ 全文搜索 ============
+  # ===========================================================================
+  # Meilisearch v1.6 全文搜索
+  # ===========================================================================
   meilisearch:
     image: getmeili/meilisearch:v1.6
     container_name: linxi-meilisearch
@@ -95,22 +133,30 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 15s
 
-  # ============ AI 引擎 ============
+  # ===========================================================================
+  # AI 引擎（Python FastAPI + gRPC）
+  # Build context: ./ai-engine
+  # ===========================================================================
   ai-engine:
     build:
       context: ./ai-engine
       dockerfile: ../deploy/docker/ai-engine.Dockerfile
+      # 构建缓存：本地开发可加速重复构建
+      cache_from:
+        - type=local,src=/tmp/.buildx-ai-engine-cache
     container_name: linxi-ai-engine
     restart: unless-stopped
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-linxi}:${POSTGRES_PASSWORD:-linxi_dev_password}@postgres:5432/${POSTGRES_DB:-linximanager}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-linxi}:${POSTGRES_PASSWORD:-linxi_dev_password}@postgres:5432/${POSTGRES_DB:-linximanager}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_dev_password}@redis:6379/1
       - AI_ENGINE_ENV=development
       - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-claude-opus-4-7}
     ports:
-      - "8000:8000"
-      - "50051:50051"
+      - "8000:8000"   # HTTP REST
+      - "50051:50051" # gRPC
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,37 +165,68 @@ services:
     networks:
       - linxi-net
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
       timeout: 10s
-      start_period: 30s
+      start_period: 40s
       retries: 3
 
-  # ============ Go 后端 ============
+  # ===========================================================================
+  # Go 后端
+  # Build context: ./backend
+  # 环境变量说明：
+  #   - REDIS_ADDR 格式为 "host:port"，与 config.go 中 Redis.Addr 字段对应
+  #   - JWT_ACCESS_SECRET / JWT_REFRESH_SECRET 开发可用默认值，生产必须替换
+  # ===========================================================================
   backend:
     build:
       context: ./backend
       dockerfile: ../deploy/docker/backend.Dockerfile
     container_name: linxi-backend
     restart: unless-stopped
-    env_file:
-      - ./deploy/env/.env.development
     environment:
+      # 应用
       - APP_ENV=development
+      - APP_PORT=8080
+      - APP_SECRET=${APP_SECRET:-change_me_to_a_random_32_char_secret}
+      # 数据库
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=${POSTGRES_DB:-linximanager}
       - DB_USER=${POSTGRES_USER:-linxi}
       - DB_PASSWORD=${POSTGRES_PASSWORD:-linxi_dev_password}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - DB_MAX_OPEN_CONNS=20
+      - DB_MAX_IDLE_CONNS=5
+      - DB_CONN_MAX_LIFETIME=300
+      # Redis：config.go 读取 REDIS_ADDR（host:port 格式）
+      - REDIS_ADDR=redis:6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-redis_dev_password}
+      - REDIS_DB=0
+      # JWT
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-dev_jwt_access_secret_change_in_prod}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-dev_jwt_refresh_secret_change_in_prod}
+      - JWT_ACCESS_EXPIRE=7200
+      - JWT_REFRESH_EXPIRE=604800
+      # 限流
+      - RATE_LIMIT_QPS=100
+      - RATE_LIMIT_BURST=200
+      # MinIO
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minio_dev_password}
+      - MINIO_BUCKET=linximanager
+      - MINIO_USE_SSL=false
+      # Meilisearch
       - MEILI_HOST=http://meilisearch:7700
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY:-meili_dev_masterkey}
+      # AI 引擎 gRPC
       - AI_ENGINE_GRPC=ai-engine:50051
+      # 日志
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=text
+      # CORS
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000
     ports:
       - "8080:8080"
     depends_on:
@@ -168,23 +245,30 @@ services:
       start_period: 15s
       retries: 3
 
-  # ============ 管理后台 ============
+  # ===========================================================================
+  # 管理后台（Vue3 + Nginx）
+  # Build context: ./frontend/admin
+  # Nginx 在容器内部代理 /api → backend:8080，前端无需硬编码 API 地址
+  # ===========================================================================
   admin:
     build:
       context: ./frontend/admin
       dockerfile: ../../deploy/docker/admin.Dockerfile
+      args:
+        # 构建时注入：在浏览器中 /api 路径由 Nginx 反代到 backend
+        VITE_API_BASE_URL: ""
     container_name: linxi-admin
     restart: unless-stopped
-    environment:
-      - VITE_API_BASE_URL=http://backend:8080
     ports:
       - "3000:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - linxi-net
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/ping"]
       interval: 30s
       timeout: 5s
+      start_period: 10s
       retries: 3

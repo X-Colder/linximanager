@@ -1,23 +1,34 @@
-version: "3.9"
-
+# =============================================================================
 # 灵犀掌柜 - 生产环境覆盖配置
-# 使用: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 使用方法:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 生产环境与开发环境的关键差异：
+#   1. 数据库和缓存不暴露端口（仅内网访问）
+#   2. 所有密钥从 CI/CD Secret 注入，无默认值
+#   3. 资源限制更保守，restart: always
+#   4. 新增 nginx 反向代理（统一入口，SSL 终止）
+#   5. backend / ai-engine 多副本（docker compose 单机模式）
+# =============================================================================
 
 networks:
   linxi-net:
     driver: bridge
 
 services:
+
+  # ---------------------------------------------------------------------------
+  # 基础设施：生产不暴露端口，仅内网访问
+  # ---------------------------------------------------------------------------
   postgres:
-    image: postgres:16-alpine
     restart: always
     environment:
+      # 生产值通过 CI/CD Secret 注入，此处不设默认值
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      TZ: Asia/Shanghai
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    ports: []   # 覆盖开发配置，不对宿主机暴露端口
     deploy:
       resources:
         limits:
@@ -26,12 +37,8 @@ services:
         reservations:
           cpus: "1.0"
           memory: 2G
-    # 生产环境不暴露端口，仅内网访问
-    expose:
-      - "5432"
 
   redis:
-    image: redis:7-alpine
     restart: always
     command: >
       redis-server
@@ -39,6 +46,7 @@ services:
       --appendonly yes
       --maxmemory 512mb
       --maxmemory-policy allkeys-lru
+    ports: []
     deploy:
       resources:
         limits:
@@ -47,15 +55,13 @@ services:
         reservations:
           cpus: "0.5"
           memory: 512M
-    expose:
-      - "6379"
 
   minio:
-    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
     restart: always
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports: []
     deploy:
       resources:
         limits:
@@ -64,15 +70,13 @@ services:
         reservations:
           cpus: "0.5"
           memory: 512M
-    expose:
-      - "9000"
 
   meilisearch:
-    image: getmeili/meilisearch:v1.6
     restart: always
     environment:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
       MEILI_ENV: production
+    ports: []
     deploy:
       resources:
         limits:
@@ -81,15 +85,20 @@ services:
         reservations:
           cpus: "0.25"
           memory: 256M
-    expose:
-      - "7700"
 
+  # ---------------------------------------------------------------------------
+  # AI 引擎：生产环境
+  # ---------------------------------------------------------------------------
   ai-engine:
     restart: always
     environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
       - AI_ENGINE_ENV=production
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-claude-opus-4-7}
+    ports: []
     deploy:
-      replicas: 2
       resources:
         limits:
           cpus: "4.0"
@@ -97,20 +106,46 @@ services:
         reservations:
           cpus: "2.0"
           memory: 4G
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-    expose:
-      - "8000"
-      - "50051"
 
+  # ---------------------------------------------------------------------------
+  # 后端：生产环境，不暴露端口，通过 nginx 统一入口
+  # ---------------------------------------------------------------------------
   backend:
     restart: always
-    env_file:
-      - ./deploy/env/.env.production
+    environment:
+      - APP_ENV=production
+      - APP_PORT=8080
+      - APP_SECRET=${APP_SECRET}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB}
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_MAX_OPEN_CONNS=50
+      - DB_MAX_IDLE_CONNS=10
+      - DB_CONN_MAX_LIFETIME=300
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DB=0
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - JWT_ACCESS_EXPIRE=7200
+      - JWT_REFRESH_EXPIRE=604800
+      - RATE_LIMIT_QPS=100
+      - RATE_LIMIT_BURST=200
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - MINIO_BUCKET=linximanager
+      - MINIO_USE_SSL=false
+      - MEILI_HOST=http://meilisearch:7700
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+      - AI_ENGINE_GRPC=ai-engine:50051
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - CORS_ALLOWED_ORIGINS=https://admin.linximanager.com
+    ports: []
     deploy:
-      replicas: 3
       resources:
         limits:
           cpus: "2.0"
@@ -118,23 +153,17 @@ services:
         reservations:
           cpus: "0.5"
           memory: 256M
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-      update_config:
-        parallelism: 1
-        delay: 10s
-        failure_action: rollback
-    expose:
-      - "8080"
-    # 生产环境不暴露端口，通过 Nginx 统一入口
-    ports: !reset []
 
+  # ---------------------------------------------------------------------------
+  # 管理后台：生产环境构建时注入域名
+  # ---------------------------------------------------------------------------
   admin:
     restart: always
+    build:
+      args:
+        VITE_API_BASE_URL: ""  # 通过 nginx 代理 /api，无需硬编码
+    ports: []
     deploy:
-      replicas: 2
       resources:
         limits:
           cpus: "0.5"
@@ -142,25 +171,32 @@ services:
         reservations:
           cpus: "0.1"
           memory: 64M
-    ports: !reset []
-    expose:
-      - "80"
 
-  # ============ Nginx 反向代理 (生产独有) ============
+  # ---------------------------------------------------------------------------
+  # Nginx 反向代理（仅生产环境）
+  # 负责 SSL 终止、限流、路由到 backend/admin
+  # ---------------------------------------------------------------------------
   nginx:
     image: nginx:1.25-alpine
+    container_name: linxi-nginx
     restart: always
     ports:
       - "80:80"
       - "443:443"
     volumes:
+      # 主配置（性能、gzip、安全头、upstream）
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # server block 配置（SSL、路由规则）
       - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Let's Encrypt 证书（由 certbot 在宿主机生成后挂载）
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      # 日志持久化
       - /var/log/nginx:/var/log/nginx
     depends_on:
-      - backend
-      - admin
+      backend:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
     networks:
       - linxi-net
     deploy:

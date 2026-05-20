@@ -1,55 +1,75 @@
-# Git
+# =============================================================================
+# .dockerignore — 根目录（适用于所有以项目根为 build context 的构建）
+#
+# 每个服务使用各自子目录作为 build context，所以这个文件主要作为安全兜底。
+# 具体服务的 context 已在 docker-compose.yml 中声明（./backend、./frontend/admin 等），
+# 各自目录下如有需要可再添加 .dockerignore。
+# =============================================================================
+
+# ---- 版本控制 ----
 .git
 .gitignore
+.gitattributes
 
-# IDE
-.idea
-.vscode
+# ---- IDE / 编辑器 ----
+.idea/
+.vscode/
 *.swp
 *.swo
+.editorconfig
 
-# 依赖目录
-node_modules
-vendor
+# ---- 依赖目录（应在构建阶段下载，不应从宿主机复制）----
+node_modules/
+vendor/
 
-# 构建产物
-dist
-build
+# ---- 构建产物 ----
+dist/
+build/
 *.exe
 *.dll
+*.so
 
-# 环境变量（防止泄露密钥）
+# ---- 覆盖率 / 测试报告 ----
+coverage.out
+coverage.html
+*.cover
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# ---- 环境变量文件（防止密钥泄露进镜像）----
 .env
 .env.*
 !.env.example
 deploy/env/
 
-# 测试覆盖率
-coverage.out
-coverage.html
-
-# 日志
+# ---- 日志 ----
 *.log
 logs/
 
-# 临时文件
+# ---- 临时文件 ----
 tmp/
 temp/
 *.tmp
+*.bak
 
-# macOS
+# ---- macOS / Windows ----
 .DS_Store
+Thumbs.db
 
-# 文档
+# ---- 文档（不需要进入镜像）----
 docs/
 *.md
 !README.md
 
-# CI/CD
+# ---- CI/CD 配置（非运行时所需）----
 .github/
 
-# 监控配置（非镜像内容）
+# ---- 监控 / K8s / 部署脚本（非镜像内容）----
 deploy/monitoring/
-
-# K8s 配置（不应打包进镜像）
 deploy/k8s/
+deploy/env/
+
+# ---- Claude Code 内部目录 ----
+.claude/

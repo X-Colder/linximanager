@@ -1,1 +1,2 @@
 - [灵犀掌柜项目架构概览](project_architecture.md) — Go+Python+Vue3 技术栈、端口映射、K8s 生产拓扑
+- [Docker Compose 部署已知坑点与修复](docker_compose_fixes.md) — 5个非显而易见的坑：postgis镜像、REDIS_ADDR格式、nginx.conf路径等
